@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="light dark">
+  <title>Sign in to your report</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="page-signin">
+  <main class="shell">
+    <section class="card" aria-labelledby="title">
+      <p class="eyebrow">Private report</p>
+      <h1 id="title">Read your report</h1>
+
+      <div id="banner" class="banner" role="alert" hidden></div>
+
+      <!-- Step 1: license key -->
+      <form id="step-key" class="stack" autocomplete="off" novalidate>
+        <p class="lede">Paste the license key from your receipt email to open the report in your browser.</p>
+        <label for="key">License key</label>
+        <input id="key" name="license_key" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" required>
+        <button type="submit" class="btn primary" id="key-submit">Continue</button>
+      </form>
+
+      <!-- Step 2: name this device (new devices only) -->
+      <form id="step-name" class="stack" autocomplete="off" hidden novalidate>
+        <p class="lede">This looks like a new device. Give it a name so you can recognise it later.</p>
+        <label for="device">Device name</label>
+        <input id="device" name="instance_name" type="text" maxlength="60" required>
+        <button type="submit" class="btn primary" id="name-submit">Open report</button>
+        <button type="button" class="btn link" id="name-back">Use a different key</button>
+      </form>
+
+      <!-- Step 3: device limit reached -->
+      <section id="step-limit" class="stack" hidden aria-live="polite">
+        <h2>Device limit reached</h2>
+        <p id="limit-message" class="lede"></p>
+        <ul id="device-list" class="devices"></ul>
+        <p id="removal-note" class="note"></p>
+        <p id="support-note" class="note support" hidden></p>
+        <button type="button" class="btn primary" id="limit-activate" hidden>Activate this device</button>
+        <button type="button" class="btn link" id="limit-back">Use a different key</button>
+      </section>
+
+      <p class="fine">Your key is checked securely on our server. The report is shown page by page and can't be downloaded.</p>
+    </section>
+  </main>
+  <script src="/js/signin.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+# Optional: Netlify deployment (see README, "Netlify / Vercel (serverless)").
+# Read the trade-offs there first: serverless has no persistent disk for data/.
+
+[build]
+  command = "npm install"
+  publish = "public"
+
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["sharp", "mupdf"]
+  included_files = ["views/**", "public/**", "storage/**", "node_modules/dejavu-fonts-ttf/ttf/**"]
+
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/app"
+  status = 200
+  force = true

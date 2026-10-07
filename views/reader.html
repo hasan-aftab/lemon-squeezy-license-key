@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="dark">
+  <title>Report</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="page-reader">
+  <div id="app" class="reader">
+    <header class="bar">
+      <div class="bar-left">
+        <strong id="doc-title" class="doc-title">Report</strong>
+        <span id="licensee" class="licensee"></span>
+      </div>
+      <nav class="pager" aria-label="Page navigation">
+        <button type="button" id="prev" class="icon-btn" aria-label="Previous page">&#8249;</button>
+        <label class="page-jump">
+          <span class="sr-only">Page number</span>
+          <input id="jump" type="text" inputmode="numeric" pattern="[0-9]*" value="1" aria-label="Go to page">
+          <span id="total" class="total">/ 1</span>
+        </label>
+        <button type="button" id="next" class="icon-btn" aria-label="Next page">&#8250;</button>
+      </nav>
+      <div class="bar-right">
+        <button type="button" id="devices-btn" class="btn small">Devices</button>
+        <button type="button" id="logout" class="btn small">Sign out</button>
+      </div>
+    </header>
+
+    <main id="stage" class="stage" tabindex="-1">
+      <div id="status" class="status" role="status" aria-live="polite">Loading&hellip;</div>
+      <div class="page-wrap" id="page-wrap" hidden>
+        <img id="page" class="page" alt="Report page" draggable="false">
+        <div id="shield" class="shield" aria-hidden="true"></div>
+      </div>
+    </main>
+
+    <footer class="foot">
+      Every page is watermarked with your name, email and order number. Saving, copying and printing are disabled.
+    </footer>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <!-- Device manager -->
+  <div id="devices-panel" class="modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="devices-title">
+      <h2 id="devices-title">Your devices</h2>
+      <p id="devices-note" class="note"></p>
+      <ul id="device-list" class="devices"></ul>
+      <p id="devices-support" class="note support" hidden></p>
+      <button type="button" class="btn" id="devices-close">Close</button>
+    </div>
+  </div>
+
+  <script src="/js/reader.js" defer></script>
+</body>
+</html>

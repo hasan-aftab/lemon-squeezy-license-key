@@ -1,0 +1,33 @@
+{
+  "name": "secure-report-viewer",
+  "version": "1.0.0",
+  "description": "Private report viewer: Lemon Squeezy license-gated, device-limited, watermarked page-by-page reader.",
+  "type": "module",
+  "main": "server/index.js",
+  "private": true,
+  "engines": {
+    "node": ">=20.6"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "dev:mock": "node --env-file=.env.mock --watch server/index.js",
+    "start:mock": "node --env-file=.env.mock server/index.js",
+    "sample-pdf": "node scripts/make-sample-pdf.js",
+    "test": "node --env-file=.env.mock scripts/smoke-test.js"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "dejavu-fonts-ttf": "^2.37.3",
+    "dotenv": "^16.4.5",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "mupdf": "^1.3.0",
+    "serverless-http": "^3.2.0",
+    "sharp": "^0.35.5"
+  },
+  "devDependencies": {
+    "pdfkit": "^0.15.2"
+  }
+}
