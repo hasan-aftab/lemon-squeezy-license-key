@@ -120,3 +120,151 @@ The app needs: Node 20.6+, a **persistent disk** for `data/` (sessions, removal 
 - If Lemon Squeezy is unreachable when a re-check is due, readers keep access for `REVALIDATE_GRACE_HOURS` (default 24) and are then locked out until it responds.
 - Lemon Squeezy's License API doesn't expose a device list, so without `LEMON_SQUEEZY_API_KEY` the limit screen only lists devices registered through this app.
 - The reader was verified through the automated API tests and static checks here; I haven't been able to run it in real Safari, Firefox and mobile browsers, so give those a manual pass before launch.
+
+## Hosted setup: VPS reference (how this site is actually deployed)
+
+The live deployment runs on an **Ubuntu VPS that already served a Laravel site on the same IP**. This app was added alongside it as a second nginx site — nothing about the Laravel site was changed. Use this section to diagnose or reproduce the deployment. Secrets are **not** recorded here; real values live only in the VPS `/opt/report-viewer/.env` and your local `.env`.
+
+```
+Internet ──> nginx :80/:443
+                ├─ <laravel-domain>                  -> existing Laravel app (untouched)
+                └─ reports.72.60.168.118.nip.io      -> proxy_pass 127.0.0.1:3000
+                                                          └─ pm2: node server/index.js
+```
+
+- **Hostname:** `reports.72.60.168.118.nip.io` — free nip.io DNS that resolves to the VPS IP `72.60.168.118`; any hostname works the same way.
+- **HTTPS:** `certbot --nginx`, renews on the existing certbot timer alongside the Laravel cert.
+- **App:** cloned to `/opt/report-viewer`, run under pm2 as `report-viewer`, bound to `localhost:3000` only (never publicly exposed).
+- **State:** `data/store.json` (sessions, device registry, removal quotas) — back it up.
+
+### Fresh host install
+
+```bash
+# Node 20 + pm2. nginx already owns :80/:443 — Caddy must NOT run alongside it.
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs git certbot python3-certbot-nginx
+sudo npm i -g pm2
+sudo systemctl disable --now caddy        # only if installed; it cannot share 80/443 with nginx
+
+git clone https://github.com/hasan-aftab/lemon-squeezy-license-key.git /opt/report-viewer
+cd /opt/report-viewer
+npm ci --omit=dev
+```
+
+### `.env` (production)
+
+Create `/opt/report-viewer/.env` (git-ignored) and `chmod 600 .env`:
+
+```bash
+NODE_ENV=production
+PORT=3000
+TRUST_PROXY=1
+PUBLIC_URL=https://reports.72.60.168.118.nip.io   # exact scheme+host you browse with
+SESSION_SECRET=<openssl rand -hex 32>
+
+STORE_ID=<lemon-squeezy store id>
+PRODUCT_ID=<lemon-squeezy product id>
+VARIANT_IDS=<variant ids, comma separated>
+ALLOW_TEST_MODE_KEYS=true                          # only while product/keys are LS test-mode
+LEMON_SQUEEZY_API_KEY=<Lemon Squeezy Settings > API key>
+LEMON_WEBHOOK_SECRET=<set after the webhook is registered>
+
+REPORT_TITLE=Confidential Market Report
+REPORT_PDF_PATH=storage/report.pdf
+RENDER_WIDTH=1200
+SUPPORT_EMAIL=support@example.com
+```
+
+### Report PDF and data dir
+
+The PDF is git-ignored — copy it from your machine:
+
+```bash
+scp storage/report.pdf user@VPS:/opt/report-viewer/storage/report.pdf
+ssh user@VPS "cd /opt/report-viewer && mkdir -p data"
+```
+
+### Start
+
+```bash
+cd /opt/report-viewer
+npm test                       # 60-check smoke test: mock Lemon, temp dir, port 3911 (safe)
+pm2 start server/index.js --name report-viewer
+pm2 save && pm2 startup        # run the printed sudo command → survives reboots
+pm2 logs report-viewer         # expect "listening" + "Serving N pages from ..."
+curl -s localhost:3000 | head -3
+```
+
+### nginx vhost (second site, Laravel untouched)
+
+`/etc/nginx/sites-available/report-viewer`:
+
+```nginx
+server {
+    listen 80;
+    listen [:::]:80;
+    server_name reports.72.60.168.118.nip.io;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+```bash
+sudo ln -s /etc/nginx/sites-available/report-viewer /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d reports.72.60.168.118.nip.io
+curl -I https://reports.72.60.168.118.nip.io      # expect HTTP/2 200
+```
+
+`X-Forwarded-Proto` + `TRUST_PROXY=1` is what lets Express see the real scheme and client IPs behind nginx.
+
+### Lemon Squeezy webhook
+
+Dashboard → *Settings → Webhooks*:
+
+- URL: `https://reports.72.60.168.118.nip.io/api/webhooks/lemonsqueezy`
+- Events: `license_key_created`, `license_key_updated`, `order_refunded`
+
+Paste the signing secret into `.env` as `LEMON_WEBHOOK_SECRET=...`, then `pm2 restart report-viewer`, then send a test event and check `pm2 logs`.
+
+### Diagnosing this deployment
+
+- **`"Cross-site requests are not allowed."` (403 `bad_origin`) on sign-in** — `PUBLIC_URL` doesn't equal the exact origin in the address bar (scheme + host). Fix the value *or* delete the `PUBLIC_URL` line entirely (same-host fallback still blocks real cross-site requests), then **`pm2 restart report-viewer`**: config is read once at import, so editing `.env` alone changes nothing. Verify without a browser:
+  ```bash
+  curl -s -X POST -H 'Content-Type: application/json' -H 'Origin: https://reports.72.60.168.118.nip.io' \
+    -d '{}' https://reports.72.60.168.118.nip.io/api/license/check   # must NOT return {"error":"bad_origin",...}
+  ```
+- **Wrong cert in the browser** (e.g. another domain's cert) — something other than nginx/certbot owns `:443`: `sudo ss -tlnp | grep -E ':80|:443'`; if Caddy got started, `sudo systemctl disable --now caddy`.
+- **503** — usually the *Laravel* app in maintenance mode, not this one. The report viewer answers 502 only when `:3000` is down: `pm2 list`, `curl -s localhost:3000`.
+- **Sign-in 500 / `EROFS`** — `DATA_DIR` (or the default `data/`) isn't writable by the pm2 user.
+- **Everyone signed out, device/removal limits reset** — `data/store.json` was deleted or the app runs from a fresh copy; restore the backup.
+- **Placeholder pages instead of the report** — `storage/report.pdf` missing: `ls -la storage/` on the VPS, re-scp it (no restart needed).
+- **Session cookie doesn't stick** — site opened over `http://`; cookies are `Secure` in production, so always use `https://`.
+- **Config check** — `node --env-file=.env -e "import('./server/config.js').then(m=>m.assertConfig())"` prints errors/warnings for the current `.env`.
+- Handies: `curl -s localhost:3000/healthz`, `sudo nginx -t`, `sudo certbot certificates`, `sudo journalctl -u nginx -n 50 --no-pager`.
+
+### Day-2 operations
+
+```bash
+# Update the app
+cd /opt/report-viewer && git pull && npm ci --omit=dev && pm2 restart report-viewer
+
+# Backup (cron) — deleting store.json signs everyone out and resets removal quotas
+rsync -a user@VPS:/opt/report-viewer/data/ /local/backups/report-viewer/data/
+
+# Swap in a new report PDF (content hash re-checked per request; no restart needed)
+scp report.pdf user@VPS:/opt/report-viewer/storage/report.pdf
+
+# Later, move to a real domain: point DNS → change server_name in the vhost,
+# certbot --nginx -d <domain>, update PUBLIC_URL, then:
+#   sudo systemctl reload nginx && pm2 restart report-viewer
+# When switching to a live-mode Lemon Squeezy product: ALLOW_TEST_MODE_KEYS=false
+```
+
+This is the `npm start` path from [Deploying](#deploying): one process (pm2, never cluster mode — the JSON store is per-process), the hourly re-validation sweep runs, and no serverless trade-offs apply.
